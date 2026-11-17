@@ -2,6 +2,7 @@
 
 Run from the repo root:  python3 -m novelty.gui
 """
+import math
 import os
 
 os.environ.setdefault("TK_SILENCE_DEPRECATION", "1")  # macOS system Tk prints a harmless warning otherwise
@@ -19,9 +20,10 @@ NUMERIC = {"Price", "Amount", "Stock", "Rating", "Balance", "Warnings"}
 
 def _num(text, cast):
     try:
-        return cast(text)
+        v = cast(text)
     except ValueError:
         return -1  # core rejects negatives with a readable message
+    return v if math.isfinite(v) else -1  # float() accepts "inf"/"nan"; never let those reach a balance
 
 
 class App(tk.Tk):
@@ -80,12 +82,20 @@ class App(tk.Tk):
 
     def run(self, fn, *args, then, ok=None):
         """Call a core function: show its error, or confirm and redraw the screen."""
+        was_rc = self.role() == "RC"
         try:
             fn(*args)
         except NoveltyError as e:
             messagebox.showerror("Novelty", str(e))
+            if self.user and self.user.get("status") == "suspended":
+                self.user = None
+                self.show(self.home)
+            else:
+                self.show(*then)  # redraw: a fine or warning may have changed the balance or role
             return
         if ok:
+            if was_rc and self.role() == "VC":
+                ok += "\n\nCongratulations! You have been promoted to VIP Customer (10% off all books)!"
             messagebox.showinfo("Novelty", ok)
         self.show(*then)
 
@@ -186,7 +196,7 @@ class App(tk.Tk):
         stock = f'In stock: {b["stock"]}' if b["stock"] else "Out of stock"
         ttk.Label(info, text=f"     {rating}     ·     {stock}").pack(side="left")
         if self.role() in ("RC", "VC"):
-            price = b["price"] * (0.9 if self.role() == "VC" else 1)
+            price = accounts.checkout_price(self.user, b)
             text = f"Buy for ${price:.2f}" + ("  (VIP 10% off)" if self.role() == "VC" else "")
             ttk.Button(self.body, text=text, command=lambda: self.run(
                 accounts.purchase, self.store, self.user, b, then=(self.book, b),
@@ -253,9 +263,20 @@ class App(tk.Tk):
         ttk.Button(row, text="Deposit", command=lambda: self.run(
             accounts.deposit, self.store, u, _num(amt.get(), float), then=(self.account,),
             ok="Deposit saved.")).pack(side="left")
+        count, spent = accounts.vip_progress(self.store, u)
         if u["role"] == "RC":
-            ttk.Label(self.body, text="Become a VIP after more than 3 purchases or $200 spent.",
-                      style="Sub.TLabel").pack(anchor="w")
+            ttk.Label(
+                self.body,
+                text=f"VIP Progress: {count}/4 purchases  ·  ${spent:.2f}/$200.01 spent "
+                     f"(exceed 3 purchases or $200 spent for 10% off).",
+                style="Sub.TLabel",
+            ).pack(anchor="w")
+        else:
+            ttk.Label(
+                self.body,
+                text=f"Lifetime purchases: {count} book(s) (${spent:.2f} total spent)",
+                style="Sub.TLabel",
+            ).pack(anchor="w")
         ttk.Label(self.body, text="History", style="Section.TLabel").pack(anchor="w", pady=(14, 0))
         titles = {b["book_id"]: b["title"] for b in self.store.books}
         rows = [(t["transaction_id"], (t["timestamp"].replace("T", "  "), t["type"],

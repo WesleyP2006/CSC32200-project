@@ -83,6 +83,37 @@ def test_persisted():
     assert again.transactions("u0001")[0]["amount"] == "7.50"
 
 
+def test_person2_account_edge_cases():
+    s, u = fresh()
+    # 1. Duplicate & empty registration validation
+    assert raises(accounts.register, s, "   ") == "Name is required"
+    assert raises(accounts.register, s, "ana") == "Name already taken"
+
+    # 2. Invalid deposit validation
+    assert raises(accounts.deposit, s, u, 0) == "Deposit must be more than $0"
+    assert raises(accounts.deposit, s, u, -5) == "Deposit must be more than $0"
+
+    # 3. Overdraft fine WITHOUT suspension (balance remains >= 0)
+    accounts.deposit(s, u, 5)  # balance is $5, book is $10
+    assert "fine" in raises(accounts.purchase, s, u, s.books[0])
+    assert u["balance"] == 4.0 and u["status"] == "active"
+
+    # 4. VIP promotion via > $200 spent (in just 1 purchase)
+    s.books.append({"book_id": "b0002", "title": "Expensive", "author": "A", "category": "c",
+                    "date_added": "2026-01-01", "price": 210.0, "cover_path": "", "text_path": "",
+                    "stock": 2, "copies_sold": 0})
+    accounts.deposit(s, u, 250)
+    accounts.purchase(s, u, s.books[1])
+    assert u["role"] == "VC"
+    assert accounts.checkout_price(u, s.books[0]) == 9.0
+
+    # 5. Reopening resets warnings
+    u["status"] = "suspended"
+    u["warnings"] = 3
+    accounts.reopen(s, u, 0)
+    assert u["status"] == "active" and u["warnings"] == 0
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
