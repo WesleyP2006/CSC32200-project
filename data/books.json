@@ -1,0 +1,10 @@
+[
+ {"book_id": "b0001", "title": "Pride and Prejudice", "author": "Jane Austen", "category": "Romance", "date_added": "2026-10-01", "price": 8.0, "cover_path": "", "text_path": "", "stock": 5, "copies_sold": 12},
+ {"book_id": "b0002", "title": "Frankenstein", "author": "Mary Shelley", "category": "Horror", "date_added": "2026-10-03", "price": 7.5, "cover_path": "", "text_path": "", "stock": 4, "copies_sold": 9},
+ {"book_id": "b0003", "title": "Moby-Dick", "author": "Herman Melville", "category": "Adventure", "date_added": "2026-10-05", "price": 10.0, "cover_path": "", "text_path": "", "stock": 3, "copies_sold": 4},
+ {"book_id": "b0004", "title": "Dracula", "author": "Bram Stoker", "category": "Horror", "date_added": "2026-10-08", "price": 9.0, "cover_path": "", "text_path": "", "stock": 6, "copies_sold": 7},
+ {"book_id": "b0005", "title": "Emma", "author": "Jane Austen", "category": "Romance", "date_added": "2026-10-12", "price": 8.5, "cover_path": "", "text_path": "", "stock": 2, "copies_sold": 3},
+ {"book_id": "b0006", "title": "Treasure Island", "author": "Robert Louis Stevenson", "category": "Adventure", "date_added": "2026-10-15", "price": 6.0, "cover_path": "", "text_path": "", "stock": 8, "copies_sold": 10},
+ {"book_id": "b0007", "title": "The Time Machine", "author": "H. G. Wells", "category": "Science Fiction", "date_added": "2026-10-20", "price": 5.5, "cover_path": "", "text_path": "", "stock": 5, "copies_sold": 6},
+ {"book_id": "b0008", "title": "A Study in Scarlet", "author": "Arthur Conan Doyle", "category": "Mystery", "date_added": "2026-10-25", "price": 6.5, "cover_path": "", "text_path": "", "stock": 0, "copies_sold": 15}
+]

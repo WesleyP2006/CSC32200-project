@@ -1,0 +1,5 @@
+[
+ {"user_id": "u0001", "name": "Ana", "role": "RC", "balance": 25.5, "status": "active", "warnings": 0, "face_ref": "", "voice_ref": ""},
+ {"user_id": "u0002", "name": "Ben", "role": "VC", "balance": 300.0, "status": "active", "warnings": 0, "face_ref": "", "voice_ref": ""},
+ {"user_id": "u0003", "name": "Admin", "role": "SU", "balance": 0.0, "status": "active", "warnings": 0, "face_ref": "", "voice_ref": ""}
+]
