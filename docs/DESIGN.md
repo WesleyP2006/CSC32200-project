@@ -12,7 +12,7 @@ The SRS leaves these open or asks for something heavier than needed. Defaults be
 | Face ID | YOLO detect + a YOLO *classifier trained per user* | **YOLO detects the face, OpenCV LBPH identifies it** | Training a YOLO classifier at registration takes minutes and a GPU helps. LBPH trains in <1 s on a laptop from ~10 crops. Still "a simple YOLO-based procedure" per the constraint. |
 | Voice ID | MFCC + classifier | MFCC (librosa) + **sklearn KNN** | Smallest classifier that works with 3–5 samples per user. |
 | Picture search | "picture of a cover or figure" | **OpenCV ORB feature match** against stored covers, return top 3 by match count | No extra model, no embeddings. Works for photos of covers; weak on arbitrary illustrations — accepted. |
-| RAG | "finds related text in local files" | Ollama `nomic-embed-text` + **numpy cosine similarity** over chunks cached in `data/index.json` | No vector DB. A few hundred chunks search in milliseconds. |
+| RAG | "finds related text in local files" | Ollama `nomic-embed-text` + **plain-Python cosine similarity** over chunks cached in `data/rag_cache/` (keyword overlap if the embedding model is missing) | No vector DB, no numpy. A few hundred chunks search in milliseconds. |
 | Recommendations | "based on browsing and purchase history" | Top-rated books in the **categories the user bought from**; fallback = top `copies_sold` | Needs no browsing log. Appendix A has no history file; we don't add one. |
 | Rating weight | "greater weight to verified purchasers" | purchaser = 2, other = 1 | Any number works; pick one. |
 | Overdraft purchase | "$1 fine, negative → suspended" | Purchase is **rejected**, $1 fine is charged; if balance < 0 the account is suspended | Spec doesn't say the book is delivered; not delivering is the safe reading. |
@@ -43,13 +43,14 @@ Not built, on purpose: user browsing history, a vector database, PyQt6, any web/
 │  accounts.py  deposit(), purchase(), reopen(), _promote(), _suspend()  │
 │  reviews.py   rate(), filter_taboo(), add/remove_taboo()               │
 │  chat.py      answer(question, user) → RAG or plain LLM                │
-│  askbook.py   answer(book, question, user)                             │
+│  askbook.py   answer(book, question, user, session)                    │
+│  rag.py llm.py  shared retrieval; tiny Ollama HTTP client              │
 ├──────────────────────────────▲────────────────────────────────────────┤
 │  store.py    load()/save() per file; atomic writes; next_id("u")       │
 ├──────────────────────────────▲────────────────────────────────────────┤
 │  data/                                                                 │
 │  users.json  books.json  ratings.json  transactions.csv                │
-│  taboo_words.txt  index.json  store_info/*.txt  covers/  texts/        │
+│  taboo_words.txt  rag_cache/  store_info/*.txt  covers/  texts/        │
 │  biometrics/<uid>/face/*.jpg  biometrics/<uid>/voice/*.wav             │
 └───────────────────────────────────────────────────────────────────────┘
           │ biometrics (cv2, ultralytics, librosa, sklearn)
@@ -107,16 +108,30 @@ Rules that keep it simple:
 - `weighted_avg(book)` — purchaser weight 2.
 - `add_taboo(w)` / `remove_taboo(w)` — strip, lowercase, reject empty/duplicate/missing.
 
+### `core/llm.py`
+- `chat(system, prompt)` and `embed(texts)` over Ollama's HTTP API with `urllib` (no `ollama` package). Any failure ⇒ `Unavailable` with a fix the user can act on ("run `ollama pull llama3.2`", "start Ollama").
+- Models: `llama3.2` and `nomic-embed-text`; override with `NOVELTY_CHAT_MODEL` / `NOVELTY_EMBED_MODEL`. Host from `OLLAMA_HOST`.
+
+### `core/rag.py`
+- A chunk is `{source, text, roles, owner}`. `split()` packs paragraphs into ≤ 500-char chunks (1000 for books).
+- `search(question, chunks, cache)` → `(method, [(score, chunk)])`. Embeddings are cached in `data/rag_cache/*.json` keyed by chunk text, so the index rebuilds itself: editing a store file re-embeds only what changed, no build script. If the embedding model is unavailable, `method = "keyword"` (weighted keyword overlap).
+- `THRESHOLD = {"embedding": 0.6, "keyword": 0.5}`: tune with `python3 scripts/chat_cli.py --debug`.
+
 ### `core/chat.py`
-- `answer(question, user)`:
-  1. embed question; cosine against `index.json` chunks whose `roles` include the user's role (visitor = `VS`).
-  2. best score ≥ threshold ⇒ prompt = chunks + question, source = `"store info: <file>"`.
-  3. else prompt = question alone, source = `"ollama/<model>"`.
-  4. return `(text, source)`; GUI prints the source under the answer.
-- `scripts/build_index.py` chunks `data/store_info/*.txt` (~500 chars), embeds, writes `index.json`. A file named `finance.txt` gets `roles: ["SU"]`; everything else `["VS","RC","VC","SU"]`.
+- `answer(question, user)` → `(text, tag)`:
+  1. build chunks: `store_info/*.txt` (everyone; files named `finance*`/`admin*` are SU only), the **catalog** (live from books.json), a **finance report** (SU only, live from transactions.csv), and **"your account"** (balance, purchases, membership: only the logged-in RC/VC it describes).
+  2. top 3 chunks the user may see with score ≥ threshold ⇒ prompt = chunks + question, tag `"via RAG · hours.txt"`.
+  3. checked first: the single best match is a chunk this user may not see ⇒ `"Sorry, that information is only available to the store administrator."`, tag `"restricted"`. The model never sees hidden chunks (SR-03).
+  4. nothing matches ⇒ question alone, tag `"LLM · llama3.2"`; its system prompt says it cannot see store records.
+  - Questions about yourself ("my", "I", "me") always get the asker's own account chunks and are never refused.
+  5. Ollama down: a RAG hit still shows the matching store text; an LLM question raises `Unavailable` (SR-08).
 
 ### `core/askbook.py`
-- Same retrieval as chat but over one book's `text_path`, chunked on first use and cached in `data/book_index/<book_id>.json`. No text file ⇒ `NoveltyError("no text for this book")`. Visitor counter lives in `session`.
+- Same retrieval over one book's `text_path` (1000-char chunks, cached in `data/rag_cache/book_<id>.json`); always answers from the 4 best passages. No text file ⇒ `NoveltyError`. Visitors get 3 questions per session (`session` dict kept by the GUI); logged-in users are unlimited.
+- `scripts/fetch_gutenberg.py` downloads the demo books' text from Project Gutenberg and sets `text_path`.
+
+### `gui_chat.py`
+- Chat screen and the Ask-the-Book box on the book page. Calls run on a worker thread; the result comes back through a queue polled with `after()`, so the window never freezes. Chat history lives in `App.ai_session` and is cleared when the user changes (an SU's finance answers are not left on screen after logout).
 
 ### `gui.py`
 - `App(tk.Tk)` holds `store` and `user`. `show(screen, *args)` wipes both frames, redraws the nav for the current role, then calls the screen method, so a login or demotion shows immediately.
@@ -153,10 +168,11 @@ BookScreen.buy ─▶ accounts.purchase(user, book)
 
 **Chat (UC-10)**
 ```
-ChatScreen ─▶ chat.answer(q, user)
-               ├─ embed(q) ─▶ cosine vs index[role-visible chunks]
-               ├─ hit  ─▶ ollama.chat(context + q)  → (text, "store info: hours.txt")
-               └─ miss ─▶ ollama.chat(q)            → (text, "ollama/llama3.2")
+ChatScreen ─thread─▶ chat.answer(q, user)
+               ├─ embed(q) ─▶ cosine vs all chunks (cached vectors)
+               ├─ visible hit ─▶ ollama.chat(context + q)  → (text, "via RAG · hours.txt")
+               ├─ hidden hit  ─▶ no model call             → (refusal, "restricted")
+               └─ miss        ─▶ ollama.chat(q)            → (text, "LLM · llama3.2")
 ```
 
 ## 5. Traceability
@@ -172,8 +188,8 @@ ChatScreen ─▶ chat.answer(q, user)
 | 07 | accounts.deposit | users, transactions |
 | 08 | accounts.purchase | users, books, transactions |
 | 09 | reviews.rate | ratings, taboo_words, users |
-| 10 | chat.answer | index.json, store_info/ |
-| 11 | askbook.answer | texts/, book_index/ |
+| 10 | chat.answer | store_info/, books, ratings, users, transactions, rag_cache/ |
+| 11 | askbook.answer | texts/, rag_cache/ |
 | 12 | catalog.add_book | books |
 | 13 | reviews.add_taboo / remove_taboo | taboo_words |
 | 14 | accounts.reopen | users |
@@ -185,11 +201,14 @@ ChatScreen ─▶ chat.answer(q, user)
 novelty/
   gui.py            entry point: python3 -m novelty.gui
   store.py
-  errors.py         NoveltyError (Unavailable comes with step 3)
-  core/  accounts.py reviews.py catalog.py   + later: auth.py chat.py askbook.py
+  gui_chat.py       Chat screen + Ask-the-Book box
+  errors.py         NoveltyError, Unavailable
+  core/  accounts.py reviews.py catalog.py chat.py askbook.py rag.py llm.py   + later: auth.py
 data/               demo files are committed; `git checkout -- data` resets them
-scripts/            later: build_index.py, gutenberg.py
-tests/              test_core.py  (pure core, no GUI, no hardware; plain asserts, no pytest needed)
+  store_info/       text the chatbot answers from (edit freely)
+  rag_cache/        embedding cache, rebuilt automatically, not committed
+scripts/            chat_cli.py (terminal chat), fetch_gutenberg.py
+tests/              test_core.py, test_ai.py  (no GUI, no hardware, fake Ollama; plain asserts, no pytest needed)
 requirements.txt    later: opencv-contrib-python ultralytics librosa sounddevice scikit-learn numpy pillow ollama
 ```
 
@@ -198,7 +217,7 @@ requirements.txt    later: opencv-contrib-python ultralytics librosa sounddevice
 1. ✅ `store.py` + `errors.py` + `core/accounts.py` + `core/reviews.py` + `core/catalog.py` with tests — all the money/moderation rules, no hardware.
 2. ✅ `gui.py`: Home/Browse/Book/Register/Login/Account/Admin against the committed data. **This is the barebones frontend.** Login is a dropdown of users and `register()` lives in `accounts.py` until step 3.
 3. `auth.py` face, then voice; move `register()` there.
-4. `chat.py` + `askbook.py` + index script; add the Chat screen and the Ask-the-Book box.
+4. ✅ `chat.py` + `askbook.py` + `rag.py` + `llm.py`; the Chat screen and the Ask-the-Book box.
 5. `search_image`.
 
 ## 8. Open questions for the team

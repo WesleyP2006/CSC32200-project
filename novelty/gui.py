@@ -10,6 +10,7 @@ os.environ.setdefault("TK_SILENCE_DEPRECATION", "1")  # macOS system Tk prints a
 import tkinter as tk  # noqa: E402
 from tkinter import messagebox, ttk  # noqa: E402
 
+from . import gui_chat  # noqa: E402
 from .core import accounts, catalog, reviews  # noqa: E402
 from .errors import NoveltyError  # noqa: E402
 from .store import Store  # noqa: E402
@@ -41,6 +42,7 @@ class App(tk.Tk):
         self.user = None  # None = visitor
         self.current = self.prev = None
         self.admin_tab = 0
+        self.ai_session = None  # chat history and Ask-the-Book count, see gui_chat.session
         self.nav = ttk.Frame(self, padding=12)
         self.nav.pack(side="left", fill="y")
         ttk.Separator(self, orient="vertical").pack(side="left", fill="y")
@@ -60,7 +62,7 @@ class App(tk.Tk):
         for w in self.nav.winfo_children() + self.body.winfo_children():
             w.destroy()
         ttk.Label(self.nav, text="Novelty", style="Heading.TLabel").pack(pady=(0, 14))
-        items = [("Home", self.home), ("Browse & search", self.browse)]
+        items = [("Home", self.home), ("Browse & search", self.browse), ("Chat", self.chat)]
         if self.user is None:
             items += [("Register", self.register), ("Log in", self.login)]
         if self.role() in ("RC", "VC"):
@@ -204,6 +206,8 @@ class App(tk.Tk):
         elif self.user is None:
             ttk.Label(self.body, text="Log in to buy this book.", style="Sub.TLabel").pack(anchor="w", pady=8)
 
+        gui_chat.ask_book_box(self, self.body, b)
+
         box = ttk.LabelFrame(self.body, text="Rate this book", padding=8)
         box.pack(fill="x", pady=8)
         f = self.form(box, [("Stars", ["5", "4", "3", "2", "1"]), ("Comment", "")])
@@ -222,6 +226,9 @@ class App(tk.Tk):
                       wraplength=640, justify="left").pack(anchor="w", pady=2)
         if not rs:
             ttk.Label(rev, text="Be the first to review this book.", style="Sub.TLabel").pack(anchor="w")
+
+    def chat(self):
+        gui_chat.chat_screen(self)
 
     def register(self):
         self.heading("Create an account", "Face and voice enrolment will be added here later; for now just a name")

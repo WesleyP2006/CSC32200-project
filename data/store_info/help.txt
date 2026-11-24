@@ -1,0 +1,11 @@
+Creating an account and logging in
+
+To register, open Register in the menu and enroll your face and/or your voice. Novelty has no passwords: you log in by looking at the camera or speaking into the microphone. Logout to go back to browsing as a visitor.
+
+Finding books
+
+The home page shows three recommended books. Browse & search filters the catalog by category, author or the date a book was added, and finds books by keyword. You can also search with a picture of a book cover or an illustration from a book.
+
+Adding money
+
+Registered customers add money to their balance on the My account page. The amount must be more than $0. The same page shows your purchases, deposits and fines.

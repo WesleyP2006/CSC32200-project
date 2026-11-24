@@ -1,0 +1,23 @@
+Buying books
+
+You need an account to buy books. Visitors can browse, search, read reviews and chat, but only registered customers and VIP customers can buy. You pay from your account balance; add money on the My account page. All prices are in US dollars.
+
+Returns
+
+All sales are final: books cannot be returned or refunded.
+
+Not enough money and fines
+
+If you try to buy a book that costs more than your balance, the purchase is refused and a $1 fine is taken from your balance. If the fine makes your balance negative, your account is suspended. A suspended account cannot log in until the store administrator reopens it, which needs a positive balance.
+
+VIP customers
+
+A registered customer becomes a VIP customer after more than 3 purchases or after spending more than $200. VIP customers get 10% off every book.
+
+Reviews and comments
+
+Anyone can rate a book from 1 to 5 stars and leave a comment. Ratings from customers who bought the book count double in the book's average. Words on the store's taboo list are replaced with asterisks. A comment with more than 3 taboo words is blocked and its author gets a warning. A registered customer with more than 2 warnings is suspended, and a VIP customer who gets a warning goes back to being a registered customer.
+
+Ask the Book
+
+On a book's page you can ask questions about the book, answered from its full text. Visitors can try 3 questions; registered customers can ask as many as they like.
