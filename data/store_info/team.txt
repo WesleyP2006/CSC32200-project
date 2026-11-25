@@ -1,0 +1,5 @@
+About Novelty and its team
+
+Novelty is an AI enabled desktop bookstore app made by team WHJJN for CSC 32200 Software Engineering at The City College of New York in Fall 2026. The team members are Wesley Pilamunga, Henry Tran, Juan Criollo, Julian Benelli and Nick Siguencia.
+
+Novelty is written in Python. It stores everything in local JSON, CSV and text files, logs users in with face or voice recognition, and runs its AI features (this chatbot and Ask the Book) on a free local model through Ollama, so no data leaves the computer.
